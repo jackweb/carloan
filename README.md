@@ -26,14 +26,15 @@ After a quote, the client can go back to step 3 and change parts. The order then
 
 ## Utility endpoints
 
-| Endpoint    | Returns                                                       |
-|-------------|---------------------------------------------------------------|
-| `GET /slot` | `[{slot, options: [{id, price, requires?, excludes?}]}]`      |
-| `GET /bank` | `[{bank_id, name, apr}]`                                      |
+| Endpoint           | Returns                                                       |
+|--------------------|---------------------------------------------------------------|
+| `GET /slot`        | slot names: `["engine", "gearbox", ...]`                      |
+| `GET /slot/{slot}` | `{"<slot>": [{id, price, requires?, excludes?}]}`; **404** for an unknown slot |
+| `GET /bank`        | `[{id, name, apr}]`, sorted by name; `id` is a UUID, `apr` a decimal string in percent (e.g. `"7.4900"`) |
 
 ## Parts catalog
 
-The catalog is hardcoded and is the source of truth. `GET /slot` serves it.
+The catalog is hardcoded in [`backend/src/backend/slot.py`](backend/src/backend/slot.py), which is the source of truth. `GET /slot` and `GET /slot/{slot}` serve it.
 
 | Slot         | Options                                   | Price effect            | Compatibility rule                                     |
 |--------------|-------------------------------------------|-------------------------|--------------------------------------------------------|
@@ -46,7 +47,7 @@ The catalog is hardcoded and is the source of truth. `GET /slot` serves it.
 | `suspension` | comfort, sport                            | 0 / 700                 | none                                                   |
 
 <details>
-<summary>Catalog data (JSON)</summary>
+<summary>Catalog data (JSON, mirrors <code>slot.py</code>)</summary>
 
 ```json
 {
@@ -137,12 +138,13 @@ These banks and APRs are placeholder values.
 POST /order                                  → {id}           # draft
 PUT  /order/{id}/model                                        # model_set
 GET  /slot
+GET  /slot/engine
 PUT  /order/{id}/parts/engine    {"id": "turbo20"}            # configuring
 PUT  /order/{id}/parts/gearbox   {"id": "auto"}
 GET  /order/{id}/quote                                        # quoted
 PUT  /order/{id}/funding/budget  {"max_monthly_payment": 600, "down_payment": 5000}
 GET  /bank
-PUT  /order/{id}/funding/bank    {"bank_id": "bank_a"}
+PUT  /order/{id}/funding/bank    {"bank_id": "<uuid>"}
 GET  /order/{id}/funding/terms
 PUT  /order/{id}/funding/offer   {"term_months": 48}          # funded
 POST /order/{id}/confirm                                      # confirmed
