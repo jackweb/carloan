@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.car import MODELS
 from backend.db import get_session
 from backend.models import Bank
 from backend.slot import CATALOG
@@ -27,6 +28,11 @@ class BankOut(BaseModel):
 @router.get("/bank", response_model=list[BankOut])
 def list_banks(session: SessionDep) -> list[Bank]:
     return list(session.scalars(select(Bank).order_by(Bank.name)))
+
+
+@router.get("/car-model")
+def list_car_models() -> list[str]:
+    return MODELS
 
 
 class SlotOption(BaseModel):
