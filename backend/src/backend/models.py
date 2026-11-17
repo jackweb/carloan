@@ -1,10 +1,14 @@
 import uuid
 from decimal import Decimal
+from typing import Literal, get_args
 
-from sqlalchemy import Numeric, String
+from sqlalchemy import Enum, Numeric, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.db import Base
+
+OrderState = Literal["draft", "model_set", "configuring", "quoted", "funded", "confirmed"]
 
 
 class Bank(Base):
@@ -14,3 +18,22 @@ class Bank(Base):
     name: Mapped[str] = mapped_column(String(255))
     # Annual percentage rate in percent, e.g. 7.4900 means 7.49%.
     apr: Mapped[Decimal] = mapped_column(Numeric(7, 4))
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    # Chosen option per slot, e.g. {"engine": "turbo20", "gearbox": "auto"}.
+    slots: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)
+    # Stored as varchar with a CHECK constraint limiting it to OrderState values.
+    state: Mapped[OrderState] = mapped_column(
+        Enum(
+            *get_args(OrderState),
+            name="order_state",
+            native_enum=False,
+            create_constraint=True,
+            length=20,
+        ),
+        default="draft",
+    )

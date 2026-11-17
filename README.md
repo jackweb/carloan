@@ -20,6 +20,8 @@ draft ──► model_set ──► configuring ──► quoted ──► funde
 | 5 | Funding (loan)  | `/order/{id}/funding/...` (below) | `funded`        |
 | 6 | Confirm         | `POST /order/{id}/confirm`        | `confirmed`     |
 
+`POST /order` takes no body and returns **201** with `{id, state}`; `id` is a UUID and `state` is `"draft"`.
+
 After a quote, the client can go back to step 3 and change parts. The order then needs a new quote.
 
 `POST /order/{id}/confirm` returns **409** until a funding option has been chosen. A cash purchase is a funding option where `down_payment` equals the quote total.
@@ -135,7 +137,7 @@ These banks and APRs are placeholder values.
 ## Example flow
 
 ```http
-POST /order                                  → {id}           # draft
+POST /order                                  → {id, state}    # draft
 PUT  /order/{id}/model                                        # model_set
 GET  /slot
 GET  /slot/engine
