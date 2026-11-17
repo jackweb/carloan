@@ -14,8 +14,7 @@ function CarConfiguration() {
         alt="Sample car"
         className="mt-4 w-full rounded-md"
       />
-      <CarSteps step={step} />
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex items-center justify-between gap-4">
         <button
           type="button"
           onClick={() => setStep((step) => prev(step))}
@@ -24,6 +23,9 @@ function CarConfiguration() {
         >
           Back
         </button>
+        <div className="flex-1 text-center">
+          <CarSteps step={step} />
+        </div>
         <button
           type="button"
           onClick={() => setStep((step) => next(step))}
