@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 280" role="img" aria-label="Sample car">
+  <rect width="640" height="280" fill="#eef2f7"/>
+  <ellipse cx="320" cy="236" rx="250" ry="12" fill="#cbd5e1"/>
+  <!-- body -->
+  <path d="M80 200 Q78 160 120 150 L200 140 Q250 90 330 88 L400 88 Q450 90 490 140 L540 150 Q572 158 570 200 Z" fill="#2563eb"/>
+  <!-- windows -->
+  <path d="M220 140 Q258 102 320 100 L320 140 Z" fill="#bfdbfe"/>
+  <path d="M334 100 L398 100 Q438 104 468 140 L334 140 Z" fill="#bfdbfe"/>
+  <!-- door line and handle -->
+  <line x1="327" y1="100" x2="327" y2="196" stroke="#1e40af" stroke-width="3"/>
+  <rect x="340" y="152" width="22" height="5" rx="2" fill="#1e3a8a"/>
+  <rect x="270" y="152" width="22" height="5" rx="2" fill="#1e3a8a"/>
+  <!-- lights -->
+  <rect x="546" y="160" width="20" height="12" rx="4" fill="#fde68a"/>
+  <rect x="82" y="162" width="16" height="10" rx="3" fill="#f87171"/>
+  <!-- wheels -->
+  <circle cx="180" cy="204" r="34" fill="#1f2937"/>
+  <circle cx="180" cy="204" r="16" fill="#9ca3af"/>
+  <circle cx="470" cy="204" r="34" fill="#1f2937"/>
+  <circle cx="470" cy="204" r="16" fill="#9ca3af"/>
+</svg>
