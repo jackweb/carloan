@@ -1,27 +1,29 @@
 import { useState } from 'react'
-
-// Sample data mirroring the backend catalog until it is fetched from GET /slot.
-const PARTS: Record<string, string[]> = {
-  engine: ['petrol15', 'turbo20', 'electric'],
-  gearbox: ['manual', 'auto'],
-  wheels: ['17', '18', '19'],
-  suspension: ['comfort', 'sport'],
-  paint: ['white', 'grey', 'metallic_blue'],
-  interior: ['cloth', 'leather'],
-  extras: ['tow_bar', 'roof_rails', 'sunroof', 'heated_seats'],
-}
-
-const PART_NAMES = Object.keys(PARTS)
+import { PART_NAMES, PARTS, type PartSettings } from '../parts'
 
 const selectClass = 'rounded-md border border-gray-300 px-3 py-2'
 
-function ConfigureParts() {
-  const [part, setPart] = useState(PART_NAMES[0])
-  // Chosen setting per part, e.g. { engine: 'turbo20', gearbox: 'auto' }.
-  const [matches, setMatches] = useState<Record<string, string>>({})
+type Props = {
+  value: PartSettings
+  onChange: (settings: PartSettings) => void
+}
+
+function ConfigureParts({ value: matches, onChange }: Props) {
+  // Start on the first part still to set (e.g. when coming back to this step).
+  const [part, setPart] = useState(
+    () => PART_NAMES.find((p) => !(p in matches)) ?? PART_NAMES[0],
+  )
 
   function changeSetting(setting: string) {
-    setMatches((prev) => ({ ...prev, [part]: setting }))
+    const updated = { ...matches, [part]: setting }
+    onChange(updated)
+    // Move on to the next part that has no setting yet, searching forward from
+    // this one and wrapping around; once every part is set, stay where we are.
+    const i = PART_NAMES.indexOf(part)
+    const unset = [...PART_NAMES.slice(i + 1), ...PART_NAMES.slice(0, i)].find(
+      (p) => !(p in updated),
+    )
+    if (unset) setPart(unset)
   }
 
   return (

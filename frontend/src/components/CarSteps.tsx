@@ -1,5 +1,6 @@
 import type { Step } from '../steps'
 import CarStep from './CarStep'
+import type { PartSettings } from '../parts'
 import ConfigureParts from './ConfigureParts'
 import PickBank from './PickBank'
 import PickModel from './PickModel'
@@ -8,9 +9,11 @@ type Props = {
   step: Step
   model: string
   onModelChange: (model: string) => void
+  parts: PartSettings
+  onPartsChange: (parts: PartSettings) => void
 }
 
-function CarSteps({ step, model, onModelChange }: Props) {
+function CarSteps({ step, model, onModelChange, parts, onPartsChange }: Props) {
   return (
     <>
       {step === 'Start' && (
@@ -23,7 +26,7 @@ function CarSteps({ step, model, onModelChange }: Props) {
       )}
       {step === 'Configure parts' && (
         <CarStep>
-          <ConfigureParts />
+          <ConfigureParts value={parts} onChange={onPartsChange} />
         </CarStep>
       )}
       {step === 'Quote' && (
