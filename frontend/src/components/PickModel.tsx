@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 
-function PickModel() {
+type Props = {
+  value: string
+  onChange: (model: string) => void
+}
+
+function PickModel({ value, onChange }: Props) {
   const [models, setModels] = useState<string[]>([])
-  const [model, setModel] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -15,7 +19,8 @@ function PickModel() {
       })
       .then((data) => {
         setModels(data)
-        setModel(data[0] ?? '')
+        // Keep a choice made earlier (e.g. after Back); otherwise default to the first.
+        if (!data.includes(value)) onChange(data[0] ?? '')
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
@@ -23,6 +28,8 @@ function PickModel() {
       })
 
     return () => controller.abort()
+    // Load once on mount; `value`/`onChange` are only read for the initial default.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (error) {
@@ -33,8 +40,8 @@ function PickModel() {
     <label className="inline-flex items-center gap-2">
       <span className="text-gray-700">Model</span>
       <select
-        value={model}
-        onChange={(e) => setModel(e.target.value)}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         disabled={models.length === 0}
         className="rounded-md border border-gray-300 px-3 py-2"
       >

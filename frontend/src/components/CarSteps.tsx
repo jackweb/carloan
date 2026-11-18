@@ -6,9 +6,11 @@ import PickModel from './PickModel'
 
 type Props = {
   step: Step
+  model: string
+  onModelChange: (model: string) => void
 }
 
-function CarSteps({ step }: Props) {
+function CarSteps({ step, model, onModelChange }: Props) {
   return (
     <>
       {step === 'Start' && (
@@ -16,7 +18,7 @@ function CarSteps({ step }: Props) {
       )}
       {step === 'Pick model' && (
         <CarStep>
-          <PickModel />
+          <PickModel value={model} onChange={onModelChange} />
         </CarStep>
       )}
       {step === 'Configure parts' && (

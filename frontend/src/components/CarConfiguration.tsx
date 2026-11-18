@@ -3,8 +3,55 @@ import Breadcrumbs from './Breadcrumbs'
 import { isFirst, isLast, next, prev, type Step } from '../steps'
 import CarSteps from './CarSteps'
 
+export const ORDER_ID_KEY = 'orderId'
+
+async function createOrder(): Promise<string> {
+  const res = await fetch('/api/order', { method: 'POST' })
+  if (!res.ok) throw new Error(`POST /order failed: ${res.status}`)
+  const { id } = (await res.json()) as { id: string; state: string }
+  return id
+}
+
+async function setOrderModel(model: string): Promise<void> {
+  const id = sessionStorage.getItem(ORDER_ID_KEY)
+  if (!id) throw new Error('No order found; go back to Start and create one.')
+  const res = await fetch(`/api/order/${encodeURIComponent(id)}/model`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model }),
+  })
+  if (!res.ok) throw new Error(`PUT /order/{id}/model failed: ${res.status}`)
+}
+
 function CarConfiguration() {
   const [step, setStep] = useState<Step>("Start");
+  const [model, setModel] = useState('')
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  /** Runs the API call that completes `step`; resolves when it's safe to advance. */
+  async function submitStep(step: Step): Promise<void> {
+    if (step === 'Start') {
+      const id = await createOrder()
+      sessionStorage.setItem(ORDER_ID_KEY, id)
+    } else if (step === 'Pick model') {
+      await setOrderModel(model)
+    }
+  }
+
+  async function handleGo() {
+    setError(null)
+    setPending(true)
+    try {
+      await submitStep(step)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      return
+    } finally {
+      setPending(false)
+    }
+    setStep((step) => next(step))
+  }
 
   return (
     <section className="mt-6 rounded-lg border border-gray-200 p-6 shadow-sm">
@@ -24,17 +71,18 @@ function CarConfiguration() {
           Back
         </button>
         <div className="flex-1 text-center">
-          <CarSteps step={step} />
+          <CarSteps step={step} model={model} onModelChange={setModel} />
         </div>
         <button
           type="button"
-          onClick={() => setStep((step) => next(step))}
-          disabled={isLast(step)}
+          onClick={handleGo}
+          disabled={isLast(step) || pending || (step === 'Pick model' && !model)}
           className="cursor-pointer select-none rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          Go
+          {isFirst(step) ? 'Create' : 'Next'}
         </button>
       </div>
+      {error && <p className="mt-2 text-right text-red-600">{error}</p>}
     </section>
   )
 }

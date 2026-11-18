@@ -22,6 +22,8 @@ draft ──► model_set ──► configuring ──► quoted ──► funde
 
 `POST /order` takes no body and returns **201** with `{id, state}`; `id` is a UUID and `state` is `"draft"`.
 
+`PUT /order/{id}/model` takes `{"model": "<name>"}`, where the name is one of `GET /car-model`, and returns `{id, state, model}`. A draft order moves to `model_set`; an order further along keeps its state, so the model can still be changed after going back. It returns **404** for an unknown order, **422** for an unknown model and **409** once the order is `funded` or `confirmed`.
+
 After a quote, the client can go back to step 3 and change parts. The order then needs a new quote.
 
 `POST /order/{id}/confirm` returns **409** until a funding option has been chosen. A cash purchase is a funding option where `down_payment` equals the quote total.
@@ -138,7 +140,7 @@ These banks and APRs are placeholder values.
 
 ```http
 POST /order                                  → {id, state}    # draft
-PUT  /order/{id}/model                                        # model_set
+PUT  /order/{id}/model           {"model": "Sedan"}           # model_set
 GET  /slot
 GET  /slot/engine
 PUT  /order/{id}/parts/engine    {"id": "turbo20"}            # configuring
@@ -158,3 +160,4 @@ POST /order/{id}/confirm                                      # confirmed
 |--------|----------------------------------------------------------------------|
 | 409    | Part selection breaks a compatibility rule (response names the rule) |
 | 409    | `confirm` called before a funding option is chosen                   |
+| 409    | Model changed after the order is `funded` or `confirmed`             |

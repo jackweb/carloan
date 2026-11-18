@@ -24,6 +24,8 @@ class Order(Base):
     __tablename__ = "orders"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    # One of backend.car.MODELS; None until the "pick model" step.
+    model: Mapped[str | None] = mapped_column(String(50), default=None)
     # Chosen option per slot, e.g. {"engine": "turbo20", "gearbox": "auto"}.
     slots: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)
     # Stored as varchar with a CHECK constraint limiting it to OrderState values.
