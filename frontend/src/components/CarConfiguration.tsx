@@ -21,6 +21,49 @@ async function setOrderModel(id: string | null, model: string): Promise<void> {
   if (!res.ok) throw new Error(`PUT /order/{id}/model failed: ${res.status}`)
 }
 
+/** The backend's `detail` message if it sent one, else a generic message. */
+async function errorMessage(res: Response, what: string): Promise<string> {
+  try {
+    const { detail } = (await res.json()) as { detail?: unknown }
+    if (typeof detail === 'string') return detail
+  } catch {
+    // Not JSON; fall through.
+  }
+  return `${what} failed: ${res.status}`
+}
+
+/**
+ * Sends each part with PUT /order/{id}/parts/{slot}. Parts go one at a time, so a
+ * valid combination can still clash with what the order held before (e.g. turbo20
+ * while the order still has a manual gearbox). A part rejected with 409 is retried
+ * after the others; only when a whole pass saves nothing is the conflict real.
+ */
+async function setOrderParts(id: string | null, parts: PartSettings): Promise<void> {
+  if (!id) throw new Error('No order found; go back to Start and create one.')
+  let remaining = Object.entries(parts)
+  while (remaining.length > 0) {
+    const rejected: [string, string][] = []
+    let lastConflict = ''
+    for (const [slot, option] of remaining) {
+      const res = await fetch(
+        `/api/order/${encodeURIComponent(id)}/parts/${encodeURIComponent(slot)}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: option }),
+        },
+      )
+      if (res.ok) continue
+      const message = await errorMessage(res, `PUT /order/{id}/parts/${slot}`)
+      if (res.status !== 409) throw new Error(message)
+      rejected.push([slot, option])
+      lastConflict = message
+    }
+    if (rejected.length === remaining.length) throw new Error(lastConflict)
+    remaining = rejected
+  }
+}
+
 function CarConfiguration() {
   const [step, setStep] = useState<Step>("Start");
   const [orderId, setOrderId] = useState<string | null>(null)
@@ -35,6 +78,8 @@ function CarConfiguration() {
       setOrderId(await createOrder())
     } else if (step === 'Pick model') {
       await setOrderModel(orderId, model)
+    } else if (step === 'Configure parts') {
+      await setOrderParts(orderId, parts)
     }
   }
 

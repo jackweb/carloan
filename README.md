@@ -24,6 +24,8 @@ draft ──► model_set ──► configuring ──► quoted ──► funde
 
 `PUT /order/{id}/model` takes `{"model": "<name>"}`, where the name is one of `GET /car-model`, and returns `{id, state, model}`. A draft order moves to `model_set`; an order further along keeps its state, so the model can still be changed after going back. It returns **404** for an unknown order, **422** for an unknown model and **409** once the order is `funded` or `confirmed`.
 
+`PUT /order/{id}/parts/{slot}` takes `{"id": "<option>"}` and returns `{id, state, slots}`; the order moves to `configuring`. It needs a model to be set first, and returns **409** while the order is `draft`, `funded` or `confirmed`. A compatibility rule is only checked once both slots it names are set, so parts can be chosen in any order. It returns **404** for an unknown order or slot and **422** for an unknown option.
+
 After a quote, the client can go back to step 3 and change parts. The order then needs a new quote.
 
 `POST /order/{id}/confirm` returns **409** until a funding option has been chosen. A cash purchase is a funding option where `down_payment` equals the quote total.

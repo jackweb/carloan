@@ -5,7 +5,7 @@ Each option may carry compatibility rules, keyed by another slot:
 - `excludes`: the option can't be selected together with the given option.
 """
 
-CATALOG = {
+CATALOG: dict[str, list[dict]] = {
     "engine": [
         {"id": "petrol15", "price": 0},
         {"id": "turbo20", "price": 3200, "requires": {"gearbox": "auto"}},
@@ -40,3 +40,26 @@ CATALOG = {
         {"id": "heated_seats", "price": 450, "requires": {"interior": "leather"}},
     ],
 }
+
+
+def find_option(slot: str, option_id: str) -> dict | None:
+    return next((o for o in CATALOG.get(slot, []) if o["id"] == option_id), None)
+
+
+def find_conflict(slots: dict[str, str]) -> str | None:
+    """Returns the first compatibility rule broken by `slots`, or None.
+
+    A rule is only checked once both slots it names are set, so parts can be
+    chosen in any order; a `requires` on a still-empty slot is not a conflict yet.
+    """
+    for slot, option_id in slots.items():
+        option = find_option(slot, option_id)
+        if option is None:
+            continue
+        for other, needed in option.get("requires", {}).items():
+            if other in slots and slots[other] != needed:
+                return f"{slot}={option_id} requires {other}={needed}, but {other}={slots[other]}"
+        for other, banned in option.get("excludes", {}).items():
+            if slots.get(other) == banned:
+                return f"{slot}={option_id} excludes {other}={banned}"
+    return None
