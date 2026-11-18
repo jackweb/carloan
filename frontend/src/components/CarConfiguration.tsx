@@ -3,8 +3,6 @@ import Breadcrumbs from './Breadcrumbs'
 import { isFirst, isLast, next, prev, type Step } from '../steps'
 import CarSteps from './CarSteps'
 
-export const ORDER_ID_KEY = 'orderId'
-
 async function createOrder(): Promise<string> {
   const res = await fetch('/api/order', { method: 'POST' })
   if (!res.ok) throw new Error(`POST /order failed: ${res.status}`)
@@ -12,8 +10,7 @@ async function createOrder(): Promise<string> {
   return id
 }
 
-async function setOrderModel(model: string): Promise<void> {
-  const id = sessionStorage.getItem(ORDER_ID_KEY)
+async function setOrderModel(id: string | null, model: string): Promise<void> {
   if (!id) throw new Error('No order found; go back to Start and create one.')
   const res = await fetch(`/api/order/${encodeURIComponent(id)}/model`, {
     method: 'PUT',
@@ -25,6 +22,7 @@ async function setOrderModel(model: string): Promise<void> {
 
 function CarConfiguration() {
   const [step, setStep] = useState<Step>("Start");
+  const [orderId, setOrderId] = useState<string | null>(null)
   const [model, setModel] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,10 +30,9 @@ function CarConfiguration() {
   /** Runs the API call that completes `step`; resolves when it's safe to advance. */
   async function submitStep(step: Step): Promise<void> {
     if (step === 'Start') {
-      const id = await createOrder()
-      sessionStorage.setItem(ORDER_ID_KEY, id)
+      setOrderId(await createOrder())
     } else if (step === 'Pick model') {
-      await setOrderModel(model)
+      await setOrderModel(orderId, model)
     }
   }
 
@@ -65,13 +62,19 @@ function CarConfiguration() {
         <button
           type="button"
           onClick={() => setStep((step) => prev(step))}
-          disabled={isFirst(step)}
+          // Once an order exists, Start (which creates one) is behind us for good.
+          disabled={isFirst(step) || (orderId !== null && isFirst(prev(step)))}
           className="cursor-pointer select-none rounded-md border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent"
         >
           Back
         </button>
         <div className="flex-1 text-center">
           <CarSteps step={step} model={model} onModelChange={setModel} />
+          {orderId && (
+            <p className="mt-2 text-sm text-gray-500">
+              Order ID: <span className="font-mono">{orderId}</span>
+            </p>
+          )}
         </div>
         <button
           type="button"
