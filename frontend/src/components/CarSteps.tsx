@@ -38,7 +38,7 @@ function CarSteps({ step, model, onModelChange, parts, onPartsChange, quote }: P
       )}
       {step === 'Funding (loan)' && (
         <CarStep>
-          <PickBank />
+          <PickBank price={quote?.total ?? null} />
         </CarStep>
       )}
       {step === 'Confirm' && <CarStep />}

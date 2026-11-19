@@ -9,11 +9,7 @@ export type Quote = {
   total: number
 }
 
-const usd = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-})
+import { usd } from '../format'
 
 type Props = {
   quote: Quote | null
