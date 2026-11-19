@@ -3,6 +3,8 @@ export type Quote = {
   id: string
   state: string
   base_price: number
+  model: string
+  model_price: number
   parts: { slot: string; id: string; price: number }[]
   total: number
 }
@@ -32,6 +34,11 @@ function QuoteSummary({ quote }: Props) {
             <td className="pr-4 text-gray-500">base price</td>
             <td />
             <td className="text-right">{usd.format(quote.base_price)}</td>
+          </tr>
+          <tr>
+            <td className="pr-4 text-gray-500">model</td>
+            <td className="pr-4 font-medium">{quote.model}</td>
+            <td className="text-right">+{usd.format(quote.model_price)}</td>
           </tr>
           {quote.parts.map((p) => (
             <tr key={p.slot}>

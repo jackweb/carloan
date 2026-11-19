@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.orm import Session
 
-from backend.car import MODELS
+from backend.car import MODEL_PRICES, MODELS
 from backend.db import get_session
 from backend.models import Order, OrderState
 from backend.slot import (
@@ -76,10 +76,14 @@ def set_model(order_id: uuid.UUID, body: ModelIn, session: SessionDep) -> Order:
             status_code=409,
             detail=f"Model can't be changed once the order is {order.state}",
         )
+    changed = order.model != body.model
     order.model = body.model
     # Only a draft advances; a later order keeps its progress (e.g. the user went Back to change model).
     if order.state == "draft":
         order.state = "model_set"
+    # The model is priced, so a different model invalidates an existing quote.
+    elif order.state == "quoted" and changed:
+        order.state = "configuring"
     session.commit()
     return order
 
@@ -136,6 +140,8 @@ class QuoteOut(BaseModel):
     id: uuid.UUID
     state: OrderState
     base_price: int
+    model: str
+    model_price: int
     parts: list[QuoteLine]
     total: int
 
@@ -143,6 +149,8 @@ class QuoteOut(BaseModel):
 @router.get("/order/{order_id}/quote", response_model=QuoteOut)
 def get_quote(order_id: uuid.UUID, session: SessionDep) -> QuoteOut:
     order = get_order(session, order_id)
+    if order.model is None:
+        raise HTTPException(status_code=409, detail="A model must be chosen before a quote")
     missing = missing_slots(order.slots)
     if missing:
         raise HTTPException(
@@ -163,10 +171,13 @@ def get_quote(order_id: uuid.UUID, session: SessionDep) -> QuoteOut:
     if order.state == "configuring":
         order.state = "quoted"
         session.commit()
+    model_price = MODEL_PRICES[order.model]
     return QuoteOut(
         id=order.id,
         state=order.state,
         base_price=BASE_PRICE,
+        model=order.model,
+        model_price=model_price,
         parts=parts,
-        total=BASE_PRICE + sum(line.price for line in parts),
+        total=BASE_PRICE + model_price + sum(line.price for line in parts),
     )
