@@ -8,7 +8,14 @@ from sqlalchemy.orm import Session
 from backend.car import MODELS
 from backend.db import get_session
 from backend.models import Order, OrderState
-from backend.slot import CATALOG, find_conflict, find_option
+from backend.slot import (
+    BASE_PRICE,
+    CATALOG,
+    find_conflict,
+    find_option,
+    missing_slots,
+    option_price,
+)
 
 router = APIRouter()
 
@@ -117,3 +124,49 @@ def set_part(order_id: uuid.UUID, slot: str, body: PartIn, session: SessionDep) 
     order.state = "configuring"
     session.commit()
     return order
+
+
+class QuoteLine(BaseModel):
+    slot: str
+    id: str
+    price: int
+
+
+class QuoteOut(BaseModel):
+    id: uuid.UUID
+    state: OrderState
+    base_price: int
+    parts: list[QuoteLine]
+    total: int
+
+
+@router.get("/order/{order_id}/quote", response_model=QuoteOut)
+def get_quote(order_id: uuid.UUID, session: SessionDep) -> QuoteOut:
+    order = get_order(session, order_id)
+    missing = missing_slots(order.slots)
+    if missing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Every part must be chosen before a quote. Missing: {', '.join(missing)}",
+        )
+    # With every slot set, `requires` rules that were deferred while configuring are now checked too.
+    conflict = find_conflict(order.slots)
+    if conflict:
+        raise HTTPException(status_code=409, detail=conflict)
+
+    # Lines follow catalog order so the quote reads the same regardless of choice order.
+    parts = [
+        QuoteLine(slot=slot, id=order.slots[slot], price=option_price(slot, order.slots[slot]))
+        for slot in CATALOG
+    ]
+    # Only a configured order advances; a funded or confirmed order just shows its (frozen) quote.
+    if order.state == "configuring":
+        order.state = "quoted"
+        session.commit()
+    return QuoteOut(
+        id=order.id,
+        state=order.state,
+        base_price=BASE_PRICE,
+        parts=parts,
+        total=BASE_PRICE + sum(line.price for line in parts),
+    )

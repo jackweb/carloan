@@ -4,6 +4,7 @@ import type { PartSettings } from '../parts'
 import ConfigureParts from './ConfigureParts'
 import PickBank from './PickBank'
 import PickModel from './PickModel'
+import QuoteSummary, { type Quote } from './QuoteSummary'
 
 type Props = {
   step: Step
@@ -11,9 +12,10 @@ type Props = {
   onModelChange: (model: string) => void
   parts: PartSettings
   onPartsChange: (parts: PartSettings) => void
+  quote: Quote | null
 }
 
-function CarSteps({ step, model, onModelChange, parts, onPartsChange }: Props) {
+function CarSteps({ step, model, onModelChange, parts, onPartsChange, quote }: Props) {
   return (
     <>
       {step === 'Start' && (
@@ -31,7 +33,7 @@ function CarSteps({ step, model, onModelChange, parts, onPartsChange }: Props) {
       )}
       {step === 'Quote' && (
         <CarStep>
-          Estimated quote: <span className="font-semibold">$1,000</span>
+          <QuoteSummary quote={quote} />
         </CarStep>
       )}
       {step === 'Funding (loan)' && (

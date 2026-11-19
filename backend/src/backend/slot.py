@@ -42,6 +42,21 @@ CATALOG: dict[str, list[dict]] = {
 }
 
 
+# Price of the car before any part is added; every chosen option adds its own price.
+BASE_PRICE = 3000
+
+
+def missing_slots(slots: dict[str, str]) -> list[str]:
+    return [slot for slot in CATALOG if slot not in slots]
+
+
+def option_price(slot: str, option_id: str) -> int:
+    option = find_option(slot, option_id)
+    if option is None:
+        raise KeyError(f"Unknown option for {slot}: {option_id}")
+    return option["price"]
+
+
 def find_option(slot: str, option_id: str) -> dict | None:
     return next((o for o in CATALOG.get(slot, []) if o["id"] == option_id), None)
 

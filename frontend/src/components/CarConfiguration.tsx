@@ -3,6 +3,7 @@ import Breadcrumbs from './Breadcrumbs'
 import { isFirst, isLast, next, prev, type Step } from '../steps'
 import CarSteps from './CarSteps'
 import { allPartsSet, type PartSettings } from '../parts'
+import type { Quote } from './QuoteSummary'
 
 async function createOrder(): Promise<string> {
   const res = await fetch('/api/order', { method: 'POST' })
@@ -64,11 +65,20 @@ async function setOrderParts(id: string | null, parts: PartSettings): Promise<vo
   }
 }
 
+/** GET /order/{id}/quote: prices the configured car and moves the order to `quoted`. */
+async function fetchQuote(id: string | null): Promise<Quote> {
+  if (!id) throw new Error('No order found; go back to Start and create one.')
+  const res = await fetch(`/api/order/${encodeURIComponent(id)}/quote`)
+  if (!res.ok) throw new Error(await errorMessage(res, 'GET /order/{id}/quote'))
+  return (await res.json()) as Quote
+}
+
 function CarConfiguration() {
   const [step, setStep] = useState<Step>("Start");
   const [orderId, setOrderId] = useState<string | null>(null)
   const [model, setModel] = useState('')
   const [parts, setParts] = useState<PartSettings>({})
+  const [quote, setQuote] = useState<Quote | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,7 +89,11 @@ function CarConfiguration() {
     } else if (step === 'Pick model') {
       await setOrderModel(orderId, model)
     } else if (step === 'Configure parts') {
+      // Saved parts invalidate any earlier quote; fetch a fresh one before showing the Quote step,
+      // so a rule that only breaks once every slot is set keeps the user here with the error.
+      setQuote(null)
       await setOrderParts(orderId, parts)
+      setQuote(await fetchQuote(orderId))
     }
   }
 
@@ -122,6 +136,7 @@ function CarConfiguration() {
             onModelChange={setModel}
             parts={parts}
             onPartsChange={setParts}
+            quote={quote}
           />
           {orderId && (
             <p className="mt-2 text-sm text-gray-500">
