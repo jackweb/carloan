@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { PART_NAMES, PARTS, type PartSettings } from '../parts'
 
-const selectClass = 'rounded-md border border-gray-300 px-3 py-2'
+const selectBase = 'rounded-md border px-3 py-2'
+const selectClass = `${selectBase} border-gray-300`
+// Draws attention to a select that still needs a choice.
+const selectPendingClass = `${selectBase} border-amber-500 bg-amber-50 ring-2 ring-amber-300`
 
 type Props = {
   value: PartSettings
@@ -48,7 +51,7 @@ function ConfigureParts({ value: matches, onChange }: Props) {
           <select
             value={matches[part] ?? ''}
             onChange={(e) => changeSetting(e.target.value)}
-            className={selectClass}
+            className={part in matches ? selectClass : selectPendingClass}
           >
             <option value="" disabled>
               — choose —
