@@ -44,11 +44,11 @@ async function setOrderParts(id: string | null, parts: PartSettings): Promise<vo
   if (!res.ok) throw new Error(await errorMessage(res, 'PUT /order/{id}/parts'))
 }
 
-/** GET /order/{id}/quote: prices the configured car and moves the order to `quoted`. */
+/** POST /order/{id}/quote: prices the configured car and moves the order to `quoted`. */
 async function fetchQuote(id: string | null): Promise<Quote> {
   if (!id) throw new Error('No order found; go back to Start and create one.')
-  const res = await fetch(`/api/order/${encodeURIComponent(id)}/quote`)
-  if (!res.ok) throw new Error(await errorMessage(res, 'GET /order/{id}/quote'))
+  const res = await fetch(`/api/order/${encodeURIComponent(id)}/quote`, { method: 'POST' })
+  if (!res.ok) throw new Error(await errorMessage(res, 'POST /order/{id}/quote'))
   return (await res.json()) as Quote
 }
 

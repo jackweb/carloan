@@ -155,8 +155,8 @@ class QuoteOut(BaseModel):
     total: int
 
 
-@router.get("/order/{order_id}/quote", response_model=QuoteOut)
-def get_quote(order_id: uuid.UUID, session: SessionDep) -> QuoteOut:
+@router.post("/order/{order_id}/quote", response_model=QuoteOut)
+def create_quote(order_id: uuid.UUID, session: SessionDep) -> QuoteOut:
     order = get_order(session, order_id)
     if order.model is None:
         raise HTTPException(status_code=409, detail="A model must be chosen before a quote")

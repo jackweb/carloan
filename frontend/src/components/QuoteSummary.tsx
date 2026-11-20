@@ -1,4 +1,4 @@
-/** Response of GET /order/{id}/quote. */
+/** Response of POST /order/{id}/quote. */
 export type Quote = {
   id: string
   state: string

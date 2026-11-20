@@ -16,7 +16,7 @@ draft ──► model_set ──► configuring ──► quoted ──► funde
 | 1 | Start           | `POST /order`                     | `draft`         |
 | 2 | Pick model      | `PUT /order/{id}/model`           | `model_set`     |
 | 3 | Configure parts | `PUT /order/{id}/parts`           | `configuring`   |
-| 4 | Quote           | `GET /order/{id}/quote`           | `quoted`        |
+| 4 | Quote           | `POST /order/{id}/quote`          | `quoted`        |
 | 5 | Funding (loan)  | `/order/{id}/funding/...` (below) | `funded`        |
 | 6 | Confirm         | `POST /order/{id}/confirm`        | `confirmed`     |
 
@@ -26,7 +26,7 @@ draft ──► model_set ──► configuring ──► quoted ──► funde
 
 `PUT /order/{id}/parts` takes a `{"<slot>": "<option>", ...}` map naming every slot and returns `{id, state, slots}`; it replaces the order's parts and moves the order to `configuring`. It needs a model to be set first, and returns **409** while the order is `draft`, `funded` or `confirmed`, or when the parts break a compatibility rule. It returns **404** for an unknown order and **422** for a missing or unknown slot or an unknown option.
 
-`GET /order/{id}/quote` returns `{id, state, base_price, model, model_price, parts: [{slot, id, price}], total}`. The price starts at a base of **3,000**, the model adds its price (Hatchback 300, Sedan 600, Estate 700, SUV 1,200, Coupe 1,100), and every chosen option adds its catalog price: `total = base_price + model_price + Σ parts.price`. Changing the model of a `quoted` order moves it back to `configuring`. Every slot must be set; otherwise it returns **409** naming the missing slots. It also returns **409** if a compatibility rule is broken (a `requires` on a slot that was still empty while configuring is checked now). A `configuring` order moves to `quoted`; a `quoted`, `funded` or `confirmed` order keeps its state. It returns **404** for an unknown order.
+`POST /order/{id}/quote` takes no body and returns `{id, state, base_price, model, model_price, parts: [{slot, id, price}], total}`. The price starts at a base of **3,000**, the model adds its price (Hatchback 300, Sedan 600, Estate 700, SUV 1,200, Coupe 1,100), and every chosen option adds its catalog price: `total = base_price + model_price + Σ parts.price`. Changing the model of a `quoted` order moves it back to `configuring`. Every slot must be set; otherwise it returns **409** naming the missing slots. It also returns **409** if a compatibility rule is broken (a `requires` on a slot that was still empty while configuring is checked now). A `configuring` order moves to `quoted`; a `quoted`, `funded` or `confirmed` order keeps its state. It returns **404** for an unknown order.
 
 After a quote, the client can go back to step 3 and change parts. The order then needs a new quote.
 
@@ -147,9 +147,8 @@ POST /order                                  → {id, state}    # draft
 PUT  /order/{id}/model           {"model": "Sedan"}           # model_set
 GET  /slot
 GET  /slot/engine
-PUT  /order/{id}/parts/engine    {"id": "turbo20"}            # configuring
-PUT  /order/{id}/parts/gearbox   {"id": "auto"}
-GET  /order/{id}/quote                                        # quoted
+PUT  /order/{id}/parts           {"engine": "turbo20", "gearbox": "auto", ...}  # configuring
+POST /order/{id}/quote                                        # quoted
 PUT  /order/{id}/funding/budget  {"max_monthly_payment": 600, "down_payment": 5000}
 GET  /bank
 PUT  /order/{id}/funding/bank    {"bank_id": "<uuid>"}
