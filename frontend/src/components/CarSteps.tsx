@@ -1,4 +1,5 @@
-import type { Step } from '../steps'
+import type { ReactNode } from 'react'
+import { STEP, type Step } from '../steps'
 import CarStep from './CarStep'
 import type { PartSettings } from '../parts'
 import ConfigureParts from './ConfigureParts'
@@ -16,34 +17,16 @@ type Props = {
 }
 
 function CarSteps({ step, model, onModelChange, parts, onPartsChange, quote }: Props) {
-  return (
-    <>
-      {step === 'Start' && (
-        <CarStep>Welcome to the car purchase simulator</CarStep>
-      )}
-      {step === 'Pick model' && (
-        <CarStep>
-          <PickModel value={model} onChange={onModelChange} />
-        </CarStep>
-      )}
-      {step === 'Configure parts' && (
-        <CarStep>
-          <ConfigureParts value={parts} onChange={onPartsChange} />
-        </CarStep>
-      )}
-      {step === 'Quote' && (
-        <CarStep>
-          <QuoteSummary quote={quote} />
-        </CarStep>
-      )}
-      {step === 'Funding (loan)' && (
-        <CarStep>
-          <PickBank price={quote?.total ?? null} />
-        </CarStep>
-      )}
-      {step === 'Confirm' && <CarStep />}
-    </>
-  )
+  const renderers: Record<Step, () => ReactNode> = {
+    [STEP.START]: () => 'Welcome to the car purchase simulator',
+    [STEP.PICK_MODEL]: () => <PickModel value={model} onChange={onModelChange} />,
+    [STEP.CONFIGURE_PARTS]: () => <ConfigureParts value={parts} onChange={onPartsChange} />,
+    [STEP.QUOTE]: () => <QuoteSummary quote={quote} />,
+    [STEP.FUNDING]: () => <PickBank price={quote?.total ?? null} />,
+    [STEP.CONFIRM]: () => null,
+  }
+
+  return <CarStep key={step}>{renderers[step]()}</CarStep>
 }
 
 export default CarSteps

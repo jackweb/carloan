@@ -1,10 +1,19 @@
+export const STEP = {
+  START: 'Start',
+  PICK_MODEL: 'Pick model',
+  CONFIGURE_PARTS: 'Configure parts',
+  QUOTE: 'Quote',
+  FUNDING: 'Funding (loan)',
+  CONFIRM: 'Confirm',
+} as const
+
 export const STEPS = [
-  'Start',
-  'Pick model',
-  'Configure parts',
-  'Quote',
-  'Funding (loan)',
-  'Confirm',
+  STEP.START,
+  STEP.PICK_MODEL,
+  STEP.CONFIGURE_PARTS,
+  STEP.QUOTE,
+  STEP.FUNDING,
+  STEP.CONFIRM,
 ] as const
 
 export type Step = (typeof STEPS)[number]

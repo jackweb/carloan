@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Breadcrumbs from './Breadcrumbs'
-import { isFirst, isLast, next, prev, type Step } from '../steps'
+import { STEP, isFirst, isLast, next, prev, type Step } from '../steps'
 import CarSteps from './CarSteps'
 import { allPartsSet, type PartSettings } from '../parts'
 import type { Quote } from './QuoteSummary'
@@ -53,7 +53,7 @@ async function fetchQuote(id: string | null): Promise<Quote> {
 }
 
 function CarConfiguration() {
-  const [step, setStep] = useState<Step>("Start");
+  const [step, setStep] = useState<Step>(STEP.START);
   const [orderId, setOrderId] = useState<string | null>(null)
   const [model, setModel] = useState('')
   const [parts, setParts] = useState<PartSettings>({})
@@ -61,19 +61,25 @@ function CarConfiguration() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  /** Runs the API call that completes `step`; resolves when it's safe to advance. */
-  async function submitStep(step: Step): Promise<void> {
-    if (step === 'Start') {
+  /** API calls that complete each step; each resolves when it's safe to advance. Steps without one just advance. */
+  const submitHandlers: Partial<Record<Step, () => Promise<void>>> = {
+    [STEP.START]: async () => {
       setOrderId(await createOrder())
-    } else if (step === 'Pick model') {
+    },
+    [STEP.PICK_MODEL]: async () => {
       await setOrderModel(orderId, model)
-    } else if (step === 'Configure parts') {
+    },
+    [STEP.CONFIGURE_PARTS]: async () => {
       // Saved parts invalidate any earlier quote; fetch a fresh one before showing the Quote step,
       // so a rule that only breaks once every slot is set keeps the user here with the error.
       setQuote(null)
       await setOrderParts(orderId, parts)
       setQuote(await fetchQuote(orderId))
-    }
+    },
+  }
+
+  async function submitStep(step: Step): Promise<void> {
+    await submitHandlers[step]?.()
   }
 
   async function handleGo() {
@@ -129,8 +135,8 @@ function CarConfiguration() {
           disabled={
             isLast(step) ||
             pending ||
-            (step === 'Pick model' && !model) ||
-            (step === 'Configure parts' && !allPartsSet(parts))
+            (step === STEP.PICK_MODEL && !model) ||
+            (step === STEP.CONFIGURE_PARTS && !allPartsSet(parts))
           }
           className="cursor-pointer select-none rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-400"
         >
