@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.car import MODELS
+from backend.car import MODEL_PRICES
 from backend.db import get_session
 from backend.models import Bank
 from backend.slot import CATALOG
@@ -31,8 +31,8 @@ def list_banks(session: SessionDep) -> list[Bank]:
 
 
 @router.get("/car-model")
-def list_car_models() -> list[str]:
-    return MODELS
+def list_car_models() -> dict[str, int]:
+    return MODEL_PRICES
 
 
 class SlotOption(BaseModel):

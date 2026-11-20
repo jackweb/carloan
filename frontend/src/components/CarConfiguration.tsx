@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Breadcrumbs from './Breadcrumbs'
 import { STEP, isFirst, isLast, next, prev, type Step } from '../steps'
-import CarSteps from './CarSteps'
+import CarStep from './CarStep'
 import { allPartsSet, type PartSettings } from '../parts'
 import type { Quote } from './QuoteSummary'
 
@@ -115,7 +115,8 @@ function CarConfiguration() {
           Back
         </button>
         <div className="flex-1 text-center">
-          <CarSteps
+          <CarStep
+            key={step}
             step={step}
             model={model}
             onModelChange={setModel}
