@@ -1,8 +1,39 @@
-# Car Purchase Simulator API
+# Car loan simulator
 
-A purchase runs as a series of ordered steps. Each step is an endpoint that moves the order to its next state, ending in a confirmed order with a chosen funding option.
+A web app that walks through buying a car on a loan: pick a model, configure its parts, get a price quote, then compare bank loans by monthly payment.
+
+- **Backend:** FastAPI + SQLAlchemy on PostgreSQL ([`backend/`](backend/)), run with Docker Compose.
+- **Frontend:** React + TypeScript + Vite + Tailwind CSS ([`frontend/`](frontend/)).
+
+## Running it
+
+Requirements: Docker with Compose, and Node.js with npm.
+
+```sh
+cp .env.example .env   # then set a real POSTGRES_PASSWORD
+make                   # starts the backend (Docker) and the frontend (Vite)
+```
+
+Open http://localhost:5173.
+
+| Command         | What it does                                                                              |
+|-----------------|-------------------------------------------------------------------------------------------|
+| `make`          | Runs `make backend` and `make frontend`                                                   |
+| `make backend`  | `docker compose up -d --build`: PostgreSQL on port 5432 and the API on http://localhost:8000 |
+| `make frontend` | Installs npm packages if needed, then starts Vite on port 5173 in the background (log: `run/frontend.log`) |
+| `make stop`     | Stops the frontend and runs `docker compose down`                                         |
+
+- **Live reload:** in development, [`docker-compose.override.yml`](docker-compose.override.yml) mounts `backend/src` into the container and runs uvicorn with `--reload`, so backend code changes apply without a rebuild.
+- **Same origin:** the Vite dev server forwards `/api/*` to the backend with the `/api` prefix removed, so `GET /api/bank` in the browser reaches `GET /bank` on the API.
+- **API docs:** FastAPI serves interactive docs at http://localhost:8000/docs.
+
+### Database
+
+There are no migrations. On startup the backend creates any missing tables and adds the default banks if the `banks` table is empty. Existing tables are never altered, so after changing a model in [`models.py`](backend/src/backend/models.py), reset the database with `docker compose down -v`.
 
 ## Order lifecycle
+
+A purchase is an order that moves through a series of states:
 
 ```
 draft ──► model_set ──► configuring ──► quoted ──► funded ──► confirmed
@@ -11,48 +42,81 @@ draft ──► model_set ──► configuring ──► quoted ──► funde
                        (change parts after a quote)
 ```
 
-| # | Step            | Endpoint                          | Resulting state |
-|---|-----------------|-----------------------------------|-----------------|
-| 1 | Start           | `POST /order`                     | `draft`         |
-| 2 | Pick model      | `PUT /order/{id}/model`           | `model_set`     |
-| 3 | Configure parts | `PUT /order/{id}/parts`           | `configuring`   |
-| 4 | Quote           | `POST /order/{id}/quote`          | `quoted`        |
-| 5 | Funding (loan)  | `/order/{id}/funding/...` (below) | `funded`        |
-| 6 | Confirm         | `POST /order/{id}/confirm`        | `confirmed`     |
+| # | Step            | Endpoint                 | Resulting state |
+|---|-----------------|--------------------------|-----------------|
+| 1 | Start           | `POST /order`            | `draft`         |
+| 2 | Pick model      | `PUT /order/{id}/model`  | `model_set`     |
+| 3 | Configure parts | `PUT /order/{id}/parts`  | `configuring`   |
+| 4 | Quote           | `POST /order/{id}/quote` | `quoted`        |
+| 5 | Funding (loan)  | not implemented yet      | `funded`        |
+| 6 | Confirm         | not implemented yet      | `confirmed`     |
+
+The `funded` and `confirmed` states exist and already lock the model and parts against changes, but no endpoint moves an order into them yet. Funding is currently calculated in the frontend only (see [Loan calculation](#loan-calculation)).
+
+### Endpoints
 
 `POST /order` takes no body and returns **201** with `{id, state}`; `id` is a UUID and `state` is `"draft"`.
 
-`PUT /order/{id}/model` takes `{"model": "<name>"}`, where the name is one of `GET /car-model`, and returns `{id, state, model}`. A draft order moves to `model_set`; an order further along keeps its state, so the model can still be changed after going back. It returns **404** for an unknown order, **422** for an unknown model and **409** once the order is `funded` or `confirmed`.
+`PUT /order/{id}/model` takes `{"model": "<name>"}`, where the name is one of `GET /car-model`, and returns `{id, state, model}`.
+- A `draft` order moves to `model_set`; an order further along keeps its state, so the model can still be changed after going back.
+- Changing the model of a `quoted` order moves it back to `configuring`, because the model is part of the price.
+- Returns **404** for an unknown order, **422** for an unknown model and **409** once the order is `funded` or `confirmed`.
 
-`PUT /order/{id}/parts` takes a `{"<slot>": "<option>", ...}` map naming every slot and returns `{id, state, slots}`; it replaces the order's parts and moves the order to `configuring`. It needs a model to be set first, and returns **409** while the order is `draft`, `funded` or `confirmed`, or when the parts break a compatibility rule. It returns **404** for an unknown order and **422** for a missing or unknown slot or an unknown option.
+`PUT /order/{id}/parts` takes a `{"<slot>": "<option>", ...}` map naming every slot and returns `{id, state, slots}`. It replaces all of the order's parts at once and moves the order to `configuring`, which invalidates any earlier quote.
+- Returns **404** for an unknown order and **422** for a missing or unknown slot or an unknown option.
+- Returns **409** when the order is not in `model_set`, `configuring` or `quoted` (so a model must be set first), or when the parts break a [compatibility rule](#compatibility-rules).
 
-`POST /order/{id}/quote` takes no body and returns `{id, state, base_price, model, model_price, parts: [{slot, id, price}], total}`. The price starts at a base of **3,000**, the model adds its price (Hatchback 300, Sedan 600, Estate 700, SUV 1,200, Coupe 1,100), and every chosen option adds its catalog price: `total = base_price + model_price + Σ parts.price`. Changing the model of a `quoted` order moves it back to `configuring`. Every slot must be set; otherwise it returns **409** naming the missing slots. It also returns **409** if a compatibility rule is broken (a `requires` on a slot that was still empty while configuring is checked now). A `configuring` order moves to `quoted`; a `quoted`, `funded` or `confirmed` order keeps its state. It returns **404** for an unknown order.
+`POST /order/{id}/quote` takes no body and returns `{id, state, base_price, model, model_price, parts: [{slot, id, price}], total}`.
+- The price starts at a base of **3,000**, the model adds its price, and every chosen option adds its catalog price: `total = base_price + model_price + Σ parts.price`. The `parts` lines follow catalog order.
+- A `configuring` order moves to `quoted`; a `quoted`, `funded` or `confirmed` order keeps its state.
+- Returns **404** for an unknown order, and **409** when no model is set, when a slot is still empty (naming the missing slots), or when a compatibility rule is broken.
 
-After a quote, the client can go back to step 3 and change parts. The order then needs a new quote.
+### Reference data
 
-`POST /order/{id}/confirm` returns **409** until a funding option has been chosen. A cash purchase is a funding option where `down_payment` equals the quote total.
-
-## Utility endpoints
-
-| Endpoint           | Returns                                                       |
-|--------------------|---------------------------------------------------------------|
-| `GET /slot`        | slot names: `["engine", "gearbox", ...]`                      |
-| `GET /slot/{slot}` | `{"<slot>": [{id, price, requires?, excludes?}]}`; **404** for an unknown slot |
+| Endpoint           | Returns                                                                                       |
+|--------------------|-----------------------------------------------------------------------------------------------|
+| `GET /car-model`   | model names: `["Hatchback", "Sedan", "Estate", "SUV", "Coupe"]`                               |
+| `GET /slot`        | slot names: `["engine", "gearbox", ...]`                                                      |
+| `GET /slot/{slot}` | `{"<slot>": [{id, price, requires?, excludes?}]}`; **404** for an unknown slot                |
 | `GET /bank`        | `[{id, name, apr}]`, sorted by name; `id` is a UUID, `apr` a decimal string in percent (e.g. `"7.4900"`) |
+
+### Error codes
+
+| Status | When                                                                                   |
+|--------|----------------------------------------------------------------------------------------|
+| 404    | Unknown order or slot                                                                  |
+| 409    | Parts break a compatibility rule (the response names the rule)                         |
+| 409    | Parts set before a model, or a quote requested before a model and every part are set   |
+| 409    | Model or parts changed after the order is `funded` or `confirmed`                      |
+| 422    | Unknown model, slot or option, or a parts map that leaves a slot out                   |
+
+Errors carry a human-readable `detail` message, which the frontend shows to the user.
+
+## Car models
+
+The models and their prices are hardcoded in [`backend/src/backend/car.py`](backend/src/backend/car.py).
+
+| Model     | Price |
+|-----------|-------|
+| Hatchback | 300   |
+| Sedan     | 600   |
+| Estate    | 700   |
+| SUV       | 1,200 |
+| Coupe     | 1,100 |
 
 ## Parts catalog
 
 The catalog is hardcoded in [`backend/src/backend/slot.py`](backend/src/backend/slot.py), which is the source of truth. `GET /slot` and `GET /slot/{slot}` serve it.
 
-| Slot         | Options                                   | Price effect            | Compatibility rule                                     |
-|--------------|-------------------------------------------|-------------------------|--------------------------------------------------------|
-| `engine`     | 1.5 petrol, 2.0 turbo, electric           | base + 0 / 3,200 / 9,500 | electric excludes manual gearbox                       |
-| `gearbox`    | manual, automatic                         | 0 / 1,400               | turbo requires automatic                               |
-| `wheels`     | 17in, 18in, 19in alloy                    | 0 / 600 / 1,100         | 19in needs sport suspension                            |
-| `paint`      | white, grey, metallic blue                | 0 / 0 / 800             | none                                                   |
-| `interior`   | cloth, leather                            | 0 / 1,500               | none                                                   |
-| `extras`     | tow bar, roof rails, sunroof, heated seats | 350 / 280 / 1,200 / 450 | sunroof excludes roof rails; heated seats need leather |
-| `suspension` | comfort, sport                            | 0 / 700                 | none                                                   |
+| Slot         | Options                                    | Price                   | Compatibility rule                                      |
+|--------------|--------------------------------------------|-------------------------|---------------------------------------------------------|
+| `engine`     | 1.5 petrol, 2.0 turbo, electric            | 0 / 3,200 / 9,500       | turbo requires automatic; electric excludes manual      |
+| `gearbox`    | manual, automatic                          | 0 / 1,400               | none                                                    |
+| `wheels`     | 17in, 18in, 19in alloy                     | 0 / 600 / 1,100         | 19in requires sport suspension                          |
+| `suspension` | comfort, sport                             | 0 / 700                 | none                                                    |
+| `paint`      | white, grey, metallic blue                 | 0 / 0 / 800             | none                                                    |
+| `interior`   | cloth, leather                             | 0 / 1,500               | none                                                    |
+| `extras`     | tow bar, roof rails, sunroof, heated seats | 350 / 280 / 1,200 / 450 | sunroof excludes roof rails; heated seats require leather |
 
 <details>
 <summary>Catalog data (JSON, mirrors <code>slot.py</code>)</summary>
@@ -102,65 +166,53 @@ The catalog is hardcoded in [`backend/src/backend/slot.py`](backend/src/backend/
 - `requires`: the option can only be selected if the named slot holds the given option.
 - `excludes`: the option can't be selected together with the named option.
 
-An invalid combination returns **409 Conflict** with the rule that failed. A client can learn the constraints from these responses.
+A rule is checked only once both slots it names are set, so parts can be chosen in any order. An invalid combination returns **409 Conflict** naming the rule that failed, e.g. `engine=turbo20 requires gearbox=auto, but gearbox=manual`.
 
-## Funding (loan)
+## Banks
 
-Funding is set in four sub-steps:
+On first start the backend adds these banks to an empty `banks` table (see [`backend/src/backend/main.py`](backend/src/backend/main.py)). They are example values.
 
-| # | Sub-step         | Endpoint                                | Body / result                                  |
-|---|------------------|-----------------------------------------|------------------------------------------------|
-| 1 | Max payment      | `PUT /order/{id}/funding/budget`        | `{max_monthly_payment, down_payment}`          |
-| 2 | Select bank      | `GET /bank`, then `PUT /order/{id}/funding/bank` | `{bank_id}`                           |
-| 3 | Calculate months | `GET /order/{id}/funding/terms`         | returns the terms that fit the budget          |
-| 4 | Choose option    | `PUT /order/{id}/funding/offer`         | `{term_months}` → state `funded`               |
+| Bank   | APR   |
+|--------|-------|
+| Bank A | 6.99% |
+| Bank B | 7.49% |
+| Bank C | 8.25% |
+| Bank D | 5.75% |
 
-If no term fits the budget in step 3, the client goes back to step 2 and selects a different bank (or changes the budget).
+## Frontend
 
-### Terms calculation
+The app is a single page that steps through the order lifecycle, with breadcrumbs showing the current step and Back/Next buttons:
 
-1. **Amount financed** = quote total − `down_payment`
-2. For each allowed term (**24 / 36 / 48 / 60 months**), the monthly payment is a standard annuity at the selected bank's APR:
+1. **Start:** Next creates the order (`POST /order`).
+2. **Pick model:** the models come from `GET /car-model`; Next saves the choice (`PUT /order/{id}/model`).
+3. **Configure parts:** pick a part, then its setting; the form moves on to the next part still unset and highlights a setting that still needs a choice. Next saves all parts (`PUT /order/{id}/parts`) and requests a quote, so a broken compatibility rule keeps you on this step with the backend's error message.
+4. **Quote:** shows the quote broken down into base price, model and parts.
+5. **Funding (loan):** pick a bank (from `GET /bank`) and a loan length of 1–10 years to see the monthly payment, the interest and the total to repay.
+6. **Confirm:** a placeholder, as the backend has no confirm step yet.
 
-   ```
-   r       = APR / 12
-   payment = P · r / (1 − (1 + r)^(−n))
-   ```
+The part options come from [`frontend/src/parts.ts`](frontend/src/parts.ts), a copy of the catalog's option ids, rather than from `GET /slot`.
 
-   where `P` is the amount financed and `n` is the term in months.
-3. Only terms where `payment ≤ max_monthly_payment` are returned.
+### Loan calculation
 
-### Banks (example data)
+The funding step finances the full quote total (there is no down payment). The monthly payment is a standard annuity at the bank's APR, calculated in [`PickBank.tsx`](frontend/src/components/PickBank.tsx):
 
-These banks and APRs are placeholder values.
+```
+r       = APR / 12
+n       = years · 12
+payment = P · r / (1 − (1 + r)^(−n))      (payment = P / n when the APR is 0)
+```
 
-| Bank   | APR  |
-|--------|------|
-| Bank A | 4.9% |
-| Bank B | 6.2% |
-| Bank C | 7.9% |
+where `P` is the quote total. The total to repay is `payment · n`, and the interest is that total minus `P`. The loan is not saved to the order.
 
 ## Example flow
 
 ```http
-POST /order                                  → {id, state}    # draft
+POST /order                                                   # draft
+GET  /car-model
 PUT  /order/{id}/model           {"model": "Sedan"}           # model_set
 GET  /slot
 GET  /slot/engine
 PUT  /order/{id}/parts           {"engine": "turbo20", "gearbox": "auto", ...}  # configuring
 POST /order/{id}/quote                                        # quoted
-PUT  /order/{id}/funding/budget  {"max_monthly_payment": 600, "down_payment": 5000}
 GET  /bank
-PUT  /order/{id}/funding/bank    {"bank_id": "<uuid>"}
-GET  /order/{id}/funding/terms
-PUT  /order/{id}/funding/offer   {"term_months": 48}          # funded
-POST /order/{id}/confirm                                      # confirmed
 ```
-
-## Error codes
-
-| Status | When                                                                 |
-|--------|----------------------------------------------------------------------|
-| 409    | Part selection breaks a compatibility rule (response names the rule) |
-| 409    | `confirm` called before a funding option is chosen                   |
-| 409    | Model changed after the order is `funded` or `confirmed`             |
