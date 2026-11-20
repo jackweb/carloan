@@ -2,12 +2,12 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
 from backend.car import MODEL_PRICES, MODELS
 from backend.db import get_session
-from backend.models import Order, OrderState
+from backend.models import Bank, Order, OrderState
 from backend.slot import (
     BASE_PRICE,
     CATALOG,
@@ -25,6 +25,8 @@ SessionDep = Annotated[Session, Depends(get_session)]
 MODEL_LOCKED_STATES: set[OrderState] = {"funded", "confirmed"}
 # Parts can be chosen once a model is set and until funding is chosen.
 PARTS_EDITABLE_STATES: set[OrderState] = {"model_set", "configuring", "quoted"}
+# A loan can be chosen once the order is quoted, and changed until the order is confirmed.
+LOAN_EDITABLE_STATES: set[OrderState] = {"quoted", "funded"}
 
 
 class OrderCreated(BaseModel):
@@ -190,3 +192,35 @@ def create_quote(order_id: uuid.UUID, session: SessionDep) -> QuoteOut:
         parts=parts,
         total=BASE_PRICE + model_price + sum(line.price for line in parts),
     )
+
+
+class LoanIn(BaseModel):
+    bank_id: uuid.UUID
+    years: int = Field(ge=1)
+
+
+class OrderLoanOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    state: OrderState
+    selected_bank: uuid.UUID | None
+    loan_years: int | None
+
+
+@router.post("/order/{order_id}/loan", response_model=OrderLoanOut)
+def set_loan(order_id: uuid.UUID, body: LoanIn, session: SessionDep) -> Order:
+    order = get_order(session, order_id)
+    if session.get(Bank, body.bank_id) is None:
+        raise HTTPException(status_code=422, detail=f"Unknown bank: {body.bank_id}")
+    if order.state not in LOAN_EDITABLE_STATES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A loan can't be chosen while the order is {order.state}",
+        )
+
+    order.selected_bank = body.bank_id
+    order.loan_years = body.years
+    order.state = "funded"
+    session.commit()
+    return order

@@ -4,6 +4,7 @@ import { STEP, isFirst, isLast, next, prev, type Step } from '../steps'
 import CarStep from './CarStep'
 import { allPartsSet, type PartSettings } from '../parts'
 import type { Quote } from './QuoteSummary'
+import { MIN_YEARS, type Loan } from './PickBank'
 
 async function createOrder(): Promise<string> {
   const res = await fetch('/api/order', { method: 'POST' })
@@ -52,12 +53,24 @@ async function fetchQuote(id: string | null): Promise<Quote> {
   return (await res.json()) as Quote
 }
 
+/** POST /order/{id}/loan: records the chosen bank and term and moves the order to `funded`. */
+async function setOrderLoan(id: string | null, loan: Loan): Promise<void> {
+  if (!id) throw new Error('No order found; go back to Start and create one.')
+  const res = await fetch(`/api/order/${encodeURIComponent(id)}/loan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bank_id: loan.bankId, years: loan.years }),
+  })
+  if (!res.ok) throw new Error(await errorMessage(res, 'POST /order/{id}/loan'))
+}
+
 function CarConfiguration() {
   const [step, setStep] = useState<Step>(STEP.START);
   const [orderId, setOrderId] = useState<string | null>(null)
   const [model, setModel] = useState('')
   const [parts, setParts] = useState<PartSettings>({})
   const [quote, setQuote] = useState<Quote | null>(null)
+  const [loan, setLoan] = useState<Loan>({ bankId: '', years: MIN_YEARS })
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -75,6 +88,9 @@ function CarConfiguration() {
       setQuote(null)
       await setOrderParts(orderId, parts)
       setQuote(await fetchQuote(orderId))
+    },
+    [STEP.FUNDING]: async () => {
+      await setOrderLoan(orderId, loan)
     },
   }
 
@@ -123,6 +139,8 @@ function CarConfiguration() {
             parts={parts}
             onPartsChange={setParts}
             quote={quote}
+            loan={loan}
+            onLoanChange={setLoan}
           />
           {orderId && (
             <p className="mt-2 text-sm text-gray-400">
@@ -137,7 +155,8 @@ function CarConfiguration() {
             isLast(step) ||
             pending ||
             (step === STEP.PICK_MODEL && !model) ||
-            (step === STEP.CONFIGURE_PARTS && !allPartsSet(parts))
+            (step === STEP.CONFIGURE_PARTS && !allPartsSet(parts)) ||
+            (step === STEP.FUNDING && !loan.bankId)
           }
           className="cursor-pointer select-none rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-400"
         >

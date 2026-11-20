@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 from typing import Literal, get_args
 
-from sqlalchemy import Enum, Numeric, String
+from sqlalchemy import Enum, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,3 +39,7 @@ class Order(Base):
         ),
         default="draft",
     )
+    # Bank chosen at the "funding" step; None until then.
+    selected_bank: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("banks.id"), default=None)
+    # Loan term in years; None until the "funding" step.
+    loan_years: Mapped[int | None] = mapped_column(default=None)

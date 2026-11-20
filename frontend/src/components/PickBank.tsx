@@ -8,13 +8,27 @@ type Bank = {
   apr: string
 }
 
+export type Loan = {
+  // Empty until a bank is chosen.
+  bankId: string
+  years: number
+}
+
 type Props = {
   // Car price to finance (the quote total); null when there is no quote yet.
   price: number | null
+  value: Loan
+  onChange: (loan: Loan) => void
 }
 
-const MIN_YEARS = 1
+export const MIN_YEARS = 1
 const MAX_YEARS = 10
+
+/** Loan term in whole years; an empty or out-of-range entry falls back into range. */
+function clampYears(input: string) {
+  const typed = Number.parseInt(input, 10)
+  return Number.isNaN(typed) ? MIN_YEARS : Math.min(MAX_YEARS, Math.max(MIN_YEARS, typed))
+}
 
 /**
  * Fixed monthly instalment that pays off `principal` in `months` payments,
@@ -26,11 +40,10 @@ function monthlyPayment(principal: number, aprPercent: number, months: number) {
   return (principal * rate) / (1 - (1 + rate) ** -months)
 }
 
-function PickBank({ price }: Props) {
+function PickBank({ price, value, onChange }: Props) {
   const [banks, setBanks] = useState<Bank[]>([])
-  const [bankId, setBankId] = useState('')
-  // Kept as typed so the field can be cleared while editing; see `years` below.
-  const [yearsInput, setYearsInput] = useState(String(MIN_YEARS))
+  // Kept as typed so the field can be cleared while editing; `value.years` holds the clamped number.
+  const [yearsInput, setYearsInput] = useState(String(value.years))
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -43,7 +56,10 @@ function PickBank({ price }: Props) {
       })
       .then((data) => {
         setBanks(data)
-        setBankId(data[0]?.id ?? '')
+        // Keep a choice made earlier (e.g. after Back); otherwise default to the first.
+        if (!data.some((b) => b.id === value.bankId)) {
+          onChange({ ...value, bankId: data[0]?.id ?? '' })
+        }
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
@@ -51,19 +67,17 @@ function PickBank({ price }: Props) {
       })
 
     return () => controller.abort()
+    // Load once on mount; `value`/`onChange` are only read for the initial default.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (error) {
     return <p className="text-red-400">Could not load banks: {error}</p>
   }
 
-  const bank = banks.find((b) => b.id === bankId)
+  const bank = banks.find((b) => b.id === value.bankId)
   const apr = bank ? Number(bank.apr) : null
-  const typedYears = Number.parseInt(yearsInput, 10)
-  // Loan term in whole years; an empty or out-of-range entry falls back into range.
-  const years = Number.isNaN(typedYears)
-    ? MIN_YEARS
-    : Math.min(MAX_YEARS, Math.max(MIN_YEARS, typedYears))
+  const { years } = value
   const months = years * 12
   const monthly =
     apr !== null && price !== null ? monthlyPayment(price, apr, months) : null
@@ -75,8 +89,8 @@ function PickBank({ price }: Props) {
         <label className="inline-flex items-center gap-2">
           <span className="text-gray-300">Select a bank</span>
           <select
-            value={bankId}
-            onChange={(e) => setBankId(e.target.value)}
+            value={value.bankId}
+            onChange={(e) => onChange({ ...value, bankId: e.target.value })}
             disabled={banks.length === 0}
             className="rounded-md border border-gray-500 bg-gray-800 px-3 py-2 text-gray-100 scheme-dark"
           >
@@ -96,7 +110,10 @@ function PickBank({ price }: Props) {
             max={MAX_YEARS}
             step={1}
             value={yearsInput}
-            onChange={(e) => setYearsInput(e.target.value)}
+            onChange={(e) => {
+              setYearsInput(e.target.value)
+              onChange({ ...value, years: clampYears(e.target.value) })
+            }}
             // Show the value actually used once the field loses focus.
             onBlur={() => setYearsInput(String(years))}
             className="w-20 rounded-md border border-gray-500 bg-gray-800 px-3 py-2 text-gray-100 scheme-dark"
