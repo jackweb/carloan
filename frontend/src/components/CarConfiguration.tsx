@@ -91,7 +91,7 @@ function CarConfiguration() {
   }
 
   return (
-    <section className="mt-6 rounded-lg border border-gray-200 p-6 shadow-sm">
+    <section className="mt-6 rounded-lg border border-gray-700 bg-blue-950 p-6 shadow-sm">
       <Breadcrumbs current={step} />
       <img
         src="/car.svg"
@@ -104,7 +104,7 @@ function CarConfiguration() {
           onClick={() => setStep((step) => prev(step))}
           // Once an order exists, Start (which creates one) is behind us for good.
           disabled={isFirst(step) || (orderId !== null && isFirst(prev(step)))}
-          className="cursor-pointer select-none rounded-md border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent"
+          className="cursor-pointer select-none rounded-md border border-gray-500 px-4 py-2 font-medium text-gray-200 hover:bg-gray-800 disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent"
         >
           Back
         </button>
@@ -118,7 +118,7 @@ function CarConfiguration() {
             quote={quote}
           />
           {orderId && (
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-sm text-gray-400">
               Order ID: <span className="font-mono">{orderId}</span>
             </p>
           )}
@@ -132,12 +132,12 @@ function CarConfiguration() {
             (step === 'Pick model' && !model) ||
             (step === 'Configure parts' && !allPartsSet(parts))
           }
-          className="cursor-pointer select-none rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+          className="cursor-pointer select-none rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-400"
         >
           {isFirst(step) ? 'Create' : 'Next'}
         </button>
       </div>
-      {error && <p className="mt-2 text-right text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-right text-red-400">{error}</p>}
     </section>
   )
 }

@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { PART_NAMES, PARTS, type PartSettings } from '../parts'
 
-const selectBase = 'rounded-md border px-3 py-2'
-const selectClass = `${selectBase} border-gray-300`
+const selectBase = 'rounded-md border px-3 py-2 scheme-dark'
+const selectClass = `${selectBase} border-gray-500 bg-gray-800 text-gray-100`
 // Draws attention to a select that still needs a choice.
-const selectPendingClass = `${selectBase} border-amber-500 bg-amber-50 ring-2 ring-amber-300`
+const selectPendingClass = `${selectBase} border-sky-400 bg-blue-900 text-gray-100 ring-2 ring-sky-400/50`
 
 type Props = {
   value: PartSettings
@@ -33,7 +33,7 @@ function ConfigureParts({ value: matches, onChange }: Props) {
     <div className="flex flex-col items-center gap-4">
       <div className="inline-flex flex-wrap items-center justify-center gap-4">
         <label className="inline-flex items-center gap-2">
-          <span className="text-gray-700">Part</span>
+          <span className="text-gray-300">Part</span>
           <select
             value={part}
             onChange={(e) => setPart(e.target.value)}
@@ -47,7 +47,7 @@ function ConfigureParts({ value: matches, onChange }: Props) {
           </select>
         </label>
         <label className="inline-flex items-center gap-2">
-          <span className="text-gray-700">Setting</span>
+          <span className="text-gray-300">Setting</span>
           <select
             value={matches[part] ?? ''}
             onChange={(e) => changeSetting(e.target.value)}
@@ -69,7 +69,7 @@ function ConfigureParts({ value: matches, onChange }: Props) {
         <ul className="text-left text-sm">
           {PART_NAMES.filter((p) => p in matches).map((p) => (
             <li key={p}>
-              <span className="text-gray-500">{p}:</span>{' '}
+              <span className="text-gray-400">{p}:</span>{' '}
               <span className="font-medium">{matches[p]}</span>
             </li>
           ))}

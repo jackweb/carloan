@@ -14,21 +14,16 @@ function Breadcrumbs({ current }: Props) {
           const isCurrent = i === currentIndex
           const isDone = i < currentIndex
           return (
-            <li key={step} className="flex items-center gap-2">
-              {i > 0 && (
-                <span aria-hidden="true" className="text-gray-400">
-                  →
-                </span>
-              )}
+            <li key={step}>
               <span
                 aria-current={isCurrent ? 'step' : undefined}
-                className={
+                className={`rounded-full border px-3 py-1 ${
                   isCurrent
-                    ? 'font-semibold text-blue-700'
+                    ? 'border-sky-400 bg-sky-400/20 font-semibold text-sky-200'
                     : isDone
-                      ? 'text-gray-700'
-                      : 'text-gray-400'
-                }
+                      ? 'border-gray-500 bg-gray-800 text-gray-300'
+                      : 'border-gray-700 text-gray-500'
+                }`}
               >
                 {step}
               </span>
