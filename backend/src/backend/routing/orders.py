@@ -88,10 +88,6 @@ def set_model(order_id: uuid.UUID, body: ModelIn, session: SessionDep) -> Order:
     return order
 
 
-class PartIn(BaseModel):
-    id: str
-
-
 class OrderPartsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -100,30 +96,43 @@ class OrderPartsOut(BaseModel):
     slots: dict[str, str]
 
 
-@router.put("/order/{order_id}/parts/{slot}", response_model=OrderPartsOut)
-def set_part(order_id: uuid.UUID, slot: str, body: PartIn, session: SessionDep) -> Order:
+@router.put("/order/{order_id}/parts", response_model=OrderPartsOut)
+def set_parts(order_id: uuid.UUID, body: dict[str, str], session: SessionDep) -> Order:
+    """Replaces the order's parts with a `{slot: option}` map naming every slot.
+
+    The whole body is applied or nothing is, so a valid combination never clashes
+    with what the order held before.
+    """
     order = get_order(session, order_id)
-    if slot not in CATALOG:
-        raise HTTPException(status_code=404, detail=f"Unknown slot: {slot}")
-    if find_option(slot, body.id) is None:
-        options = ", ".join(o["id"] for o in CATALOG[slot])
+    missing = missing_slots(body)
+    if missing:
         raise HTTPException(
             status_code=422,
-            detail=f"Unknown option for {slot}: {body.id}. Expected one of: {options}",
+            detail=f"Every part must be chosen. Missing: {', '.join(missing)}",
         )
+    for slot, option_id in body.items():
+        if slot not in CATALOG:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown slot: {slot}. Expected one of: {', '.join(CATALOG)}",
+            )
+        if find_option(slot, option_id) is None:
+            options = ", ".join(o["id"] for o in CATALOG[slot])
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown option for {slot}: {option_id}. Expected one of: {options}",
+            )
     if order.state not in PARTS_EDITABLE_STATES:
         raise HTTPException(
             status_code=409,
             detail=f"Parts can't be changed while the order is {order.state}",
         )
 
-    slots = {**order.slots, slot: body.id}
-    conflict = find_conflict(slots)
+    conflict = find_conflict(body)
     if conflict:
         raise HTTPException(status_code=409, detail=conflict)
 
-    # Reassign (not mutate) so SQLAlchemy notices the JSONB change.
-    order.slots = slots
+    order.slots = body
     # Any part change invalidates an existing quote.
     order.state = "configuring"
     session.commit()

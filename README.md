@@ -15,7 +15,7 @@ draft ──► model_set ──► configuring ──► quoted ──► funde
 |---|-----------------|-----------------------------------|-----------------|
 | 1 | Start           | `POST /order`                     | `draft`         |
 | 2 | Pick model      | `PUT /order/{id}/model`           | `model_set`     |
-| 3 | Configure parts | `PUT /order/{id}/parts/{slot}`    | `configuring`   |
+| 3 | Configure parts | `PUT /order/{id}/parts`           | `configuring`   |
 | 4 | Quote           | `GET /order/{id}/quote`           | `quoted`        |
 | 5 | Funding (loan)  | `/order/{id}/funding/...` (below) | `funded`        |
 | 6 | Confirm         | `POST /order/{id}/confirm`        | `confirmed`     |
@@ -24,7 +24,7 @@ draft ──► model_set ──► configuring ──► quoted ──► funde
 
 `PUT /order/{id}/model` takes `{"model": "<name>"}`, where the name is one of `GET /car-model`, and returns `{id, state, model}`. A draft order moves to `model_set`; an order further along keeps its state, so the model can still be changed after going back. It returns **404** for an unknown order, **422** for an unknown model and **409** once the order is `funded` or `confirmed`.
 
-`PUT /order/{id}/parts/{slot}` takes `{"id": "<option>"}` and returns `{id, state, slots}`; the order moves to `configuring`. It needs a model to be set first, and returns **409** while the order is `draft`, `funded` or `confirmed`. A compatibility rule is only checked once both slots it names are set, so parts can be chosen in any order. It returns **404** for an unknown order or slot and **422** for an unknown option.
+`PUT /order/{id}/parts` takes a `{"<slot>": "<option>", ...}` map naming every slot and returns `{id, state, slots}`; it replaces the order's parts and moves the order to `configuring`. It needs a model to be set first, and returns **409** while the order is `draft`, `funded` or `confirmed`, or when the parts break a compatibility rule. It returns **404** for an unknown order and **422** for a missing or unknown slot or an unknown option.
 
 `GET /order/{id}/quote` returns `{id, state, base_price, model, model_price, parts: [{slot, id, price}], total}`. The price starts at a base of **3,000**, the model adds its price (Hatchback 300, Sedan 600, Estate 700, SUV 1,200, Coupe 1,100), and every chosen option adds its catalog price: `total = base_price + model_price + Σ parts.price`. Changing the model of a `quoted` order moves it back to `configuring`. Every slot must be set; otherwise it returns **409** naming the missing slots. It also returns **409** if a compatibility rule is broken (a `requires` on a slot that was still empty while configuring is checked now). A `configuring` order moves to `quoted`; a `quoted`, `funded` or `confirmed` order keeps its state. It returns **404** for an unknown order.
 
