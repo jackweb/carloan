@@ -19,7 +19,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     yield
 
 
-# Same names as the frontend's hardcoded list in PickBank.tsx.
 BANKS = [
     ("Bank A", Decimal("6.9900")),
     ("Bank B", Decimal("7.4900")),
