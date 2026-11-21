@@ -1,26 +1,30 @@
 import { useState } from 'react'
 import Breadcrumbs from './Breadcrumbs'
-import { STEP, isFirst, isLast, next, prev, type Step } from '../steps'
+import { STEP, canGoBack, isFirst, isLast, next, prev, type OrderState, type Step } from '../steps'
 import CarStep from './CarStep'
 import { allPartsSet, type PartSettings } from '../parts'
 import type { Quote } from './QuoteSummary'
 import { MIN_YEARS, type Loan } from './PickBank'
 
-async function createOrder(): Promise<string> {
+/** The part of every order endpoint's response that tracks the order's progress. */
+type OrderStatus = { state: OrderState }
+
+async function createOrder(): Promise<{ id: string; state: OrderState }> {
   const res = await fetch('/api/order', { method: 'POST' })
   if (!res.ok) throw new Error(`POST /order failed: ${res.status}`)
-  const { id } = (await res.json()) as { id: string; state: string }
-  return id
+  const { id, state } = (await res.json()) as { id: string; state: OrderState }
+  return { id, state }
 }
 
-async function setOrderModel(id: string | null, model: string): Promise<void> {
+async function setOrderModel(id: string | null, model: string): Promise<OrderStatus> {
   if (!id) throw new Error('No order found; go back to Start and create one.')
   const res = await fetch(`/api/order/${encodeURIComponent(id)}/model`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model }),
   })
-  if (!res.ok) throw new Error(`PUT /order/{id}/model failed: ${res.status}`)
+  if (!res.ok) throw new Error(await errorMessage(res, 'PUT /order/{id}/model'))
+  return (await res.json()) as OrderStatus
 }
 
 /** The backend's `detail` message if it sent one, else a generic message. */
@@ -35,7 +39,7 @@ async function errorMessage(res: Response, what: string): Promise<string> {
 }
 
 /** Sends all parts at once with PUT /order/{id}/parts as a `{slot: option}` map. */
-async function setOrderParts(id: string | null, parts: PartSettings): Promise<void> {
+async function setOrderParts(id: string | null, parts: PartSettings): Promise<OrderStatus> {
   if (!id) throw new Error('No order found; go back to Start and create one.')
   const res = await fetch(`/api/order/${encodeURIComponent(id)}/parts`, {
     method: 'PUT',
@@ -43,6 +47,7 @@ async function setOrderParts(id: string | null, parts: PartSettings): Promise<vo
     body: JSON.stringify(parts),
   })
   if (!res.ok) throw new Error(await errorMessage(res, 'PUT /order/{id}/parts'))
+  return (await res.json()) as OrderStatus
 }
 
 /** POST /order/{id}/quote: prices the configured car and moves the order to `quoted`. */
@@ -54,7 +59,7 @@ async function fetchQuote(id: string | null): Promise<Quote> {
 }
 
 /** POST /order/{id}/loan: records the chosen bank and term and moves the order to `funded`. */
-async function setOrderLoan(id: string | null, loan: Loan): Promise<void> {
+async function setOrderLoan(id: string | null, loan: Loan): Promise<OrderStatus> {
   if (!id) throw new Error('No order found; go back to Start and create one.')
   const res = await fetch(`/api/order/${encodeURIComponent(id)}/loan`, {
     method: 'POST',
@@ -62,11 +67,13 @@ async function setOrderLoan(id: string | null, loan: Loan): Promise<void> {
     body: JSON.stringify({ bank_id: loan.bankId, years: loan.years }),
   })
   if (!res.ok) throw new Error(await errorMessage(res, 'POST /order/{id}/loan'))
+  return (await res.json()) as OrderStatus
 }
 
 function CarConfiguration() {
   const [step, setStep] = useState<Step>(STEP.START);
   const [orderId, setOrderId] = useState<string | null>(null)
+  const [orderState, setOrderState] = useState<OrderState | null>(null)
   const [model, setModel] = useState('')
   const [parts, setParts] = useState<PartSettings>({})
   const [quote, setQuote] = useState<Quote | null>(null)
@@ -77,20 +84,24 @@ function CarConfiguration() {
   /** API calls that complete each step; each resolves when it's safe to advance. Steps without one just advance. */
   const submitHandlers: Partial<Record<Step, () => Promise<void>>> = {
     [STEP.START]: async () => {
-      setOrderId(await createOrder())
+      const order = await createOrder()
+      setOrderId(order.id)
+      setOrderState(order.state)
     },
     [STEP.PICK_MODEL]: async () => {
-      await setOrderModel(orderId, model)
+      setOrderState((await setOrderModel(orderId, model)).state)
     },
     [STEP.CONFIGURE_PARTS]: async () => {
       // Saved parts invalidate any earlier quote; fetch a fresh one before showing the Quote step,
       // so a rule that only breaks once every slot is set keeps the user here with the error.
       setQuote(null)
-      await setOrderParts(orderId, parts)
-      setQuote(await fetchQuote(orderId))
+      setOrderState((await setOrderParts(orderId, parts)).state)
+      const quote = await fetchQuote(orderId)
+      setQuote(quote)
+      setOrderState(quote.state)
     },
     [STEP.FUNDING]: async () => {
-      await setOrderLoan(orderId, loan)
+      setOrderState((await setOrderLoan(orderId, loan)).state)
     },
   }
 
@@ -124,8 +135,7 @@ function CarConfiguration() {
         <button
           type="button"
           onClick={() => setStep((step) => prev(step))}
-          // Once an order exists, Start (which creates one) is behind us for good.
-          disabled={isFirst(step) || (orderId !== null && isFirst(prev(step)))}
+          disabled={pending || !canGoBack(step, orderState)}
           className="cursor-pointer select-none rounded-md border border-gray-500 px-4 py-2 font-medium text-gray-200 hover:bg-gray-800 disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent"
         >
           Back

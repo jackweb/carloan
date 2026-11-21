@@ -1,7 +1,9 @@
+import type { OrderState } from '../steps'
+
 /** Response of POST /order/{id}/quote. */
 export type Quote = {
   id: string
-  state: string
+  state: OrderState
   base_price: number
   model: string
   model_price: number
