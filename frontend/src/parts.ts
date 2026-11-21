@@ -17,3 +17,18 @@ export type PartSettings = Record<string, string>
 export function allPartsSet(settings: PartSettings): boolean {
   return PART_NAMES.every((p) => p in settings)
 }
+
+/** The first part with no setting yet, or the first part once every part is set. */
+export function firstUnsetPart(settings: PartSettings): string {
+  return PART_NAMES.find((p) => !(p in settings)) ?? PART_NAMES[0]
+}
+
+/**
+ * The next part with no setting yet, searching forward from `current` and wrapping
+ * around; `current` itself once every other part is set.
+ */
+export function nextUnsetPart(current: string, settings: PartSettings): string {
+  const i = PART_NAMES.indexOf(current)
+  const others = [...PART_NAMES.slice(i + 1), ...PART_NAMES.slice(0, i)]
+  return others.find((p) => !(p in settings)) ?? current
+}

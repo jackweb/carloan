@@ -1,3 +1,6 @@
+import type { Loan } from './loan'
+import { allPartsSet, type PartSettings } from './parts'
+
 export const STEP = {
   START: 'Start',
   PICK_MODEL: 'Pick model',
@@ -55,6 +58,24 @@ export function canGoBack(step: Step, state: OrderState | null): boolean {
   if (target === STEP.PICK_MODEL) return !MODEL_LOCKED_STATES.includes(state)
   if (target === STEP.CONFIGURE_PARTS) return PARTS_EDITABLE_STATES.includes(state)
   if (target === STEP.FUNDING) return LOAN_EDITABLE_STATES.includes(state)
+  return true
+}
+
+/** What the user has entered so far, as far as Next needs to know. */
+export type WizardInput = {
+  model: string
+  parts: PartSettings
+  loan: Loan
+  /** A step's request is in flight. */
+  pending: boolean
+}
+
+/** Whether Next may submit `step`: not on the last step, not mid-request, and the step's input is complete. */
+export function canGoNext(step: Step, { model, parts, loan, pending }: WizardInput): boolean {
+  if (isLast(step) || pending) return false
+  if (step === STEP.PICK_MODEL) return model !== ''
+  if (step === STEP.CONFIGURE_PARTS) return allPartsSet(parts)
+  if (step === STEP.FUNDING) return loan.bankId !== ''
   return true
 }
 

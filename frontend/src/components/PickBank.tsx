@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { usd } from '../format'
+import { MAX_YEARS, MIN_YEARS, clampYears, monthlyPayment, type Loan } from '../loan'
 
 type Bank = {
   id: string
@@ -8,36 +9,11 @@ type Bank = {
   apr: string
 }
 
-export type Loan = {
-  // Empty until a bank is chosen.
-  bankId: string
-  years: number
-}
-
 type Props = {
   // Car price to finance (the quote total); null when there is no quote yet.
   price: number | null
   value: Loan
   onChange: (loan: Loan) => void
-}
-
-export const MIN_YEARS = 1
-const MAX_YEARS = 10
-
-/** Loan term in whole years; an empty or out-of-range entry falls back into range. */
-function clampYears(input: string) {
-  const typed = Number.parseInt(input, 10)
-  return Number.isNaN(typed) ? MIN_YEARS : Math.min(MAX_YEARS, Math.max(MIN_YEARS, typed))
-}
-
-/**
- * Fixed monthly instalment that pays off `principal` in `months` payments,
- * with interest at `aprPercent` / 12 charged monthly on the remaining balance.
- */
-function monthlyPayment(principal: number, aprPercent: number, months: number) {
-  const rate = aprPercent / 100 / 12
-  if (rate === 0) return principal / months
-  return (principal * rate) / (1 - (1 + rate) ** -months)
 }
 
 function PickBank({ price, value, onChange }: Props) {

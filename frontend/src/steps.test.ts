@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { STEP, STEPS, canGoBack, isFirst, isLast, next, prev, type OrderState, type Step } from './steps'
+import { PART_NAMES, PARTS } from './parts'
+import {
+  STEP,
+  STEPS,
+  canGoBack,
+  canGoNext,
+  isFirst,
+  isLast,
+  next,
+  prev,
+  type OrderState,
+  type Step,
+  type WizardInput,
+} from './steps'
 
 const STATES = [null, 'draft', 'model_set', 'configuring', 'quoted', 'funded', 'confirmed'] as const
 
@@ -46,5 +59,49 @@ describe('step navigation', () => {
   it('prev walks back and stops at the first step', () => {
     for (let i = 1; i < STEPS.length; i++) expect(prev(STEPS[i])).toBe(STEPS[i - 1])
     expect(prev(STEP.START)).toBe(STEP.START)
+  })
+})
+
+describe('canGoNext', () => {
+  /** Every step's input filled in, nothing in flight. */
+  const complete: WizardInput = {
+    model: 'sedan',
+    parts: Object.fromEntries(PART_NAMES.map((p) => [p, PARTS[p][0]])),
+    loan: { bankId: 'bank-1', years: 5 },
+    pending: false,
+  }
+
+  it.each(STEPS.filter((s) => !isLast(s)))('allows %s when its input is complete', (step) => {
+    expect(canGoNext(step, complete)).toBe(true)
+  })
+
+  it('never allows the last step', () => {
+    expect(canGoNext(STEP.CONFIRM, complete)).toBe(false)
+  })
+
+  it.each(STEPS)('blocks %s while a request is pending', (step) => {
+    expect(canGoNext(step, { ...complete, pending: true })).toBe(false)
+  })
+
+  it('needs a model on Pick model', () => {
+    expect(canGoNext(STEP.PICK_MODEL, { ...complete, model: '' })).toBe(false)
+  })
+
+  it('needs every part on Configure parts', () => {
+    const { engine: _, ...missingEngine } = complete.parts
+    expect(canGoNext(STEP.CONFIGURE_PARTS, { ...complete, parts: missingEngine })).toBe(false)
+    expect(canGoNext(STEP.CONFIGURE_PARTS, { ...complete, parts: {} })).toBe(false)
+  })
+
+  it('needs a bank on Funding', () => {
+    const loan = { ...complete.loan, bankId: '' }
+    expect(canGoNext(STEP.FUNDING, { ...complete, loan })).toBe(false)
+  })
+
+  it("only checks the current step's input", () => {
+    const empty: WizardInput = { model: '', parts: {}, loan: { bankId: '', years: 1 }, pending: false }
+    expect(canGoNext(STEP.START, empty)).toBe(true)
+    expect(canGoNext(STEP.QUOTE, empty)).toBe(true)
+    expect(canGoNext(STEP.CONFIGURE_PARTS, { ...complete, model: '' })).toBe(true)
   })
 })

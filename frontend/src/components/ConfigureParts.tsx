@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PART_NAMES, PARTS, type PartSettings } from '../parts'
+import { PART_NAMES, PARTS, firstUnsetPart, nextUnsetPart, type PartSettings } from '../parts'
 
 const selectBase = 'rounded-md border px-3 py-2 scheme-dark'
 const selectClass = `${selectBase} border-gray-500 bg-gray-800 text-gray-100`
@@ -13,20 +13,13 @@ type Props = {
 
 function ConfigureParts({ value: matches, onChange }: Props) {
   // Start on the first part still to set (e.g. when coming back to this step).
-  const [part, setPart] = useState(
-    () => PART_NAMES.find((p) => !(p in matches)) ?? PART_NAMES[0],
-  )
+  const [part, setPart] = useState(() => firstUnsetPart(matches))
 
   function changeSetting(setting: string) {
     const updated = { ...matches, [part]: setting }
     onChange(updated)
-    // Move on to the next part that has no setting yet, searching forward from
-    // this one and wrapping around; once every part is set, stay where we are.
-    const i = PART_NAMES.indexOf(part)
-    const unset = [...PART_NAMES.slice(i + 1), ...PART_NAMES.slice(0, i)].find(
-      (p) => !(p in updated),
-    )
-    if (unset) setPart(unset)
+    // Move on to the next part still to set; once every part is set, stay here.
+    setPart(nextUnsetPart(part, updated))
   }
 
   return (

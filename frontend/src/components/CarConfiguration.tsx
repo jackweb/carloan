@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import Breadcrumbs from './Breadcrumbs'
-import { STEP, canGoBack, isFirst, isLast, next, prev, type OrderState, type Step } from '../steps'
+import { STEP, canGoBack, canGoNext, isFirst, next, prev, type OrderState, type Step } from '../steps'
 import CarStep from './CarStep'
-import { allPartsSet, type PartSettings } from '../parts'
+import type { PartSettings } from '../parts'
 import type { Quote } from './QuoteSummary'
-import { MIN_YEARS, type Loan } from './PickBank'
+import { MIN_YEARS, type Loan } from '../loan'
+import { errorMessage } from '../api'
 
 /** The part of every order endpoint's response that tracks the order's progress. */
 type OrderStatus = { state: OrderState }
@@ -25,17 +26,6 @@ async function setOrderModel(id: string | null, model: string): Promise<OrderSta
   })
   if (!res.ok) throw new Error(await errorMessage(res, 'PUT /order/{id}/model'))
   return (await res.json()) as OrderStatus
-}
-
-/** The backend's `detail` message if it sent one, else a generic message. */
-async function errorMessage(res: Response, what: string): Promise<string> {
-  try {
-    const { detail } = (await res.json()) as { detail?: unknown }
-    if (typeof detail === 'string') return detail
-  } catch {
-    // Not JSON; fall through.
-  }
-  return `${what} failed: ${res.status}`
 }
 
 /** Sends all parts at once with PUT /order/{id}/parts as a `{slot: option}` map. */
@@ -161,13 +151,7 @@ function CarConfiguration() {
         <button
           type="button"
           onClick={handleGo}
-          disabled={
-            isLast(step) ||
-            pending ||
-            (step === STEP.PICK_MODEL && !model) ||
-            (step === STEP.CONFIGURE_PARTS && !allPartsSet(parts)) ||
-            (step === STEP.FUNDING && !loan.bankId)
-          }
+          disabled={!canGoNext(step, { model, parts, loan, pending })}
           className="cursor-pointer select-none rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-400"
         >
           {isFirst(step) ? 'Create' : 'Next'}
