@@ -37,9 +37,9 @@ A purchase is an order that moves through a series of states:
 
 ```
 draft ──► model_set ──► configuring ──► quoted ──► funded ──► confirmed
-                            ▲              │
-                            └──────────────┘
-                       (change parts after a quote)
+                            ▲              │         │  ▲
+                            └──────────────┘         └──┘
+              (change model or parts after a quote)  (change the loan)
 ```
 
 | # | Step            | Endpoint                 | Resulting state |
@@ -48,10 +48,10 @@ draft ──► model_set ──► configuring ──► quoted ──► funde
 | 2 | Pick model      | `PUT /order/{id}/model`  | `model_set`     |
 | 3 | Configure parts | `PUT /order/{id}/parts`  | `configuring`   |
 | 4 | Quote           | `POST /order/{id}/quote` | `quoted`        |
-| 5 | Funding (loan)  | not implemented yet      | `funded`        |
+| 5 | Funding (loan)  | `POST /order/{id}/loan`  | `funded`        |
 | 6 | Confirm         | not implemented yet      | `confirmed`     |
 
-The `funded` and `confirmed` states exist and already lock the model and parts against changes, but no endpoint moves an order into them yet. Funding is currently calculated in the frontend only (see [Loan calculation](#loan-calculation)).
+Once an order is `funded`, its model and parts are locked; only the loan can still change. The `confirmed` state exists and locks the loan too, but no endpoint moves an order into it yet.
 
 ### Endpoints
 
@@ -71,6 +71,11 @@ The `funded` and `confirmed` states exist and already lock the model and parts a
 - A `configuring` order moves to `quoted`; a `quoted`, `funded` or `confirmed` order keeps its state.
 - Returns **404** for an unknown order, and **409** when no model is set, when a slot is still empty (naming the missing slots), or when a compatibility rule is broken.
 
+`POST /order/{id}/loan` takes `{"bank_id": "<uuid>", "years": <int>}`, where `bank_id` is one of `GET /bank` and `years` is at least 1, and returns `{id, state, selected_bank, loan_years}`.
+- Saves the bank and term on the order and moves it to `funded`. A `funded` order can be sent a new loan, which replaces the old one.
+- Returns **404** for an unknown order, **422** for an unknown bank or `years` below 1, and **409** when the order is not `quoted` or `funded`.
+- Only the bank and term are stored; the monthly payment is calculated in the frontend (see [Loan calculation](#loan-calculation)).
+
 ### Reference data
 
 | Endpoint           | Returns                                                                                       |
@@ -88,7 +93,8 @@ The `funded` and `confirmed` states exist and already lock the model and parts a
 | 409    | Parts break a compatibility rule (the response names the rule)                         |
 | 409    | Parts set before a model, or a quote requested before a model and every part are set   |
 | 409    | Model or parts changed after the order is `funded` or `confirmed`                      |
-| 422    | Unknown model, slot or option, or a parts map that leaves a slot out                   |
+| 409    | Loan chosen before the order is `quoted`, or after it is `confirmed`                   |
+| 422    | Unknown model, slot, option or bank, a parts map that leaves a slot out, or `years` below 1 |
 
 Errors carry a human-readable `detail` message, which the frontend shows to the user.
 
@@ -187,8 +193,15 @@ The app is a single page that steps through the order lifecycle, with breadcrumb
 2. **Pick model:** the models come from `GET /car-model`; Next saves the choice (`PUT /order/{id}/model`).
 3. **Configure parts:** pick a part, then its setting; the form moves on to the next part still unset and highlights a setting that still needs a choice. Next saves all parts (`PUT /order/{id}/parts`) and requests a quote, so a broken compatibility rule keeps you on this step with the backend's error message.
 4. **Quote:** shows the quote broken down into base price, model and parts.
-5. **Funding (loan):** pick a bank (from `GET /bank`) and a loan length of 1–10 years to see the monthly payment, the interest and the total to repay.
+5. **Funding (loan):** pick a bank (from `GET /bank`) and a loan length of 1–10 years to see the monthly payment, the interest and the total to repay. Next saves the loan (`POST /order/{id}/loan`).
 6. **Confirm:** a placeholder, as the backend has no confirm step yet.
+
+Back only goes to a step whose data the order can still change. The frontend keeps the `state` from each order response, and [`steps.ts`](frontend/src/steps.ts) applies the same rules as the backend:
+- Once an order is created, Back can't return to Start.
+- Back is disabled on the Funding step, so choosing a loan commits to the configured car.
+- Once the order is `funded`, Back from Confirm can still return to Funding to change the loan, but no further.
+
+These rules are a copy of the ones in [`orders.py`](backend/src/backend/routing/orders.py), so a change there needs the same change in `steps.ts`.
 
 The part options come from [`frontend/src/parts.ts`](frontend/src/parts.ts), a copy of the catalog's option ids, rather than from `GET /slot`.
 
@@ -202,7 +215,7 @@ n       = years · 12
 payment = P · r / (1 − (1 + r)^(−n))      (payment = P / n when the APR is 0)
 ```
 
-where `P` is the quote total. The total to repay is `payment · n`, and the interest is that total minus `P`. The loan is not saved to the order.
+where `P` is the quote total. The total to repay is `payment · n`, and the interest is that total minus `P`. The order stores only the chosen bank and term; the payment, interest and total are not saved.
 
 ## Example flow
 
@@ -215,4 +228,5 @@ GET  /slot/engine
 PUT  /order/{id}/parts           {"engine": "turbo20", "gearbox": "auto", ...}  # configuring
 POST /order/{id}/quote                                        # quoted
 GET  /bank
+POST /order/{id}/loan            {"bank_id": "<uuid>", "years": 5}  # funded
 ```
